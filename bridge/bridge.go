@@ -20,6 +20,8 @@ type Bridge struct {
 	PortY int
 
 	httpServer *http.Server
+
+	wg sync.WaitGroup
 }
 
 func NewBridge(portX, portY int) *Bridge {
@@ -30,19 +32,17 @@ func NewBridge(portX, portY int) *Bridge {
 
 	bridge.httpServer = &http.Server{Addr: fmt.Sprintf(":%d", portY)}
 
-	var wg sync.WaitGroup
-
 	// Start the HTTP server on portY
-	wg.Add(1)
-	go bridge.startHTTPServer(bridge.httpServer, &wg)
+	bridge.wg.Add(1)
+	go bridge.startHTTPServer(bridge.httpServer, &bridge.wg)
 
 	// Channel to signal shutdown
 	shutdown := make(chan struct{})
 	var shutdownOnce sync.Once
 
 	// Start the TCP listener on portX
-	wg.Add(1)
-	go bridge.startTCPListener(shutdown, &wg)
+	bridge.wg.Add(1)
+	go bridge.startTCPListener(shutdown, &bridge.wg)
 
 	// Wait for interrupt signal to gracefully shut down
 	sigChan := make(chan os.Signal, 1)
@@ -61,11 +61,13 @@ func NewBridge(portX, portY int) *Bridge {
 		log.Printf("Error shutting down HTTP server: %v", err)
 	}
 
-	// Wait for all goroutines to finish
-	wg.Wait()
-	log.Println("All goroutines finished. Exiting.")
-
 	return bridge
+}
+
+func (b *Bridge) Wait() {
+	b.wg.Wait()
+	fmt.Println("All goroutines finished. Exiting.")
+	b.httpServer.Close()
 }
 
 func (b *Bridge) startHTTPServer(server *http.Server, wg *sync.WaitGroup) {
