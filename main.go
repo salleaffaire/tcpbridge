@@ -8,15 +8,16 @@ import (
 
 func main() {
 	// Define CLI flags for source and destination ports
-	srcPort := flag.Int("srcp", 8080, "Source port to capture TCP traffic")
-	dstPort := flag.Int("dstp", 9090, "Destination port to send HTTP traffic")
+	tcpPort := flag.Int("tcpp", 8080, "TCP traffic in/out")
+	httpPortIn := flag.Int("httppin", 9090, "Port to receive HTTP traffic")
+	httpPortOut := flag.Int("httppout", 9091, "Port to send HTTP traffic")
 
 	// Parse CLI flags
 	flag.Parse()
 
 	// Create a new bridge instance
-	bridge := bridge.NewBridge(*srcPort, *dstPort)
-
+	TCP2HTTPBridge := bridge.NewTCP2HTTPBridge(*tcpPort, *httpPortIn, *httpPortOut)
 	// Wait on bridge
-	bridge.Wait()
+	TCP2HTTPBridge.Wait()
+
 }
