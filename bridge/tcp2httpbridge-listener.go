@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-type TCP2HTTPBridge struct {
+type TCP2HTTPBridgeListener struct {
 	TCPPort     int
 	HTTPPortIn  int
 	HTTPPortOut int
@@ -26,8 +26,8 @@ type TCP2HTTPBridge struct {
 	wg sync.WaitGroup
 }
 
-func NewTCP2HTTPBridge(tcpPort, httpPortIn, httpPortOut int) *TCP2HTTPBridge {
-	bridge := &TCP2HTTPBridge{
+func NewTCP2HTTPBridgeListener(tcpPort, httpPortIn, httpPortOut int) *TCP2HTTPBridgeListener {
+	bridge := &TCP2HTTPBridgeListener{
 		TCPPort:     tcpPort,
 		HTTPPortIn:  httpPortIn,
 		HTTPPortOut: httpPortOut,
@@ -38,7 +38,7 @@ func NewTCP2HTTPBridge(tcpPort, httpPortIn, httpPortOut int) *TCP2HTTPBridge {
 
 	// Start the HTTP server on port httpPortIn
 	bridge.wg.Add(1)
-	go bridge.startHTTPServer(bridge.httpServer, &bridge.wg)
+	go bridge.startHTTPServer(&bridge.wg)
 
 	// Channel to signal shutdown
 	shutdown := make(chan struct{})
@@ -68,13 +68,13 @@ func NewTCP2HTTPBridge(tcpPort, httpPortIn, httpPortOut int) *TCP2HTTPBridge {
 	return bridge
 }
 
-func (b *TCP2HTTPBridge) Wait() {
+func (b *TCP2HTTPBridgeListener) Wait() {
 	b.wg.Wait()
 	fmt.Println("All goroutines finished. Exiting.")
 	b.httpServer.Close()
 }
 
-func (b *TCP2HTTPBridge) startHTTPServer(server *http.Server, wg *sync.WaitGroup) {
+func (b *TCP2HTTPBridgeListener) startHTTPServer(wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	http.HandleFunc("/data", func(w http.ResponseWriter, r *http.Request) {
@@ -97,12 +97,12 @@ func (b *TCP2HTTPBridge) startHTTPServer(server *http.Server, wg *sync.WaitGroup
 	})
 
 	log.Printf("HTTP server running on port %d", b.HTTPPortIn)
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	if err := b.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("Failed to start HTTP server: %v", err)
 	}
 }
 
-func (b *TCP2HTTPBridge) sendTCPData(data []byte) {
+func (b *TCP2HTTPBridgeListener) sendTCPData(data []byte) {
 	// Send data on b.conn
 	if b.conn == nil {
 		log.Println("No TCP connection available")
@@ -114,7 +114,7 @@ func (b *TCP2HTTPBridge) sendTCPData(data []byte) {
 	}
 }
 
-func (b *TCP2HTTPBridge) startTCPListener(shutdown <-chan struct{}, wg *sync.WaitGroup) {
+func (b *TCP2HTTPBridgeListener) startTCPListener(shutdown <-chan struct{}, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", b.TCPPort))
@@ -155,7 +155,7 @@ func (b *TCP2HTTPBridge) startTCPListener(shutdown <-chan struct{}, wg *sync.Wai
 	}
 }
 
-func (b *TCP2HTTPBridge) handleTCPConnection(conn net.Conn) {
+func (b *TCP2HTTPBridgeListener) handleTCPConnection(conn net.Conn) {
 	defer conn.Close()
 
 	for {
@@ -180,7 +180,7 @@ func (b *TCP2HTTPBridge) handleTCPConnection(conn net.Conn) {
 	log.Printf("Connection from %s closed", conn.RemoteAddr())
 }
 
-func (b *TCP2HTTPBridge) sendHTTPData(data []byte) {
+func (b *TCP2HTTPBridgeListener) sendHTTPData(data []byte) {
 	resp, err := http.Post(fmt.Sprintf("http://localhost:%d/data", b.HTTPPortOut), "application/octet-stream",
 		bytes.NewReader(data))
 	if err != nil {
