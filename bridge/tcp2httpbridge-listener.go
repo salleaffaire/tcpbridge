@@ -150,17 +150,17 @@ func (b *TCP2HTTPBridgeListener) startTCPListener(shutdown <-chan struct{}, wg *
 		case conn := <-connChan:
 			log.Printf("Accepted connection from %s", conn.RemoteAddr())
 			b.conn = &conn
-			go b.handleTCPConnection(conn)
+			go b.handleTCPConnection()
 		}
 	}
 }
 
-func (b *TCP2HTTPBridgeListener) handleTCPConnection(conn net.Conn) {
-	defer conn.Close()
+func (b *TCP2HTTPBridgeListener) handleTCPConnection() {
+	defer (*b.conn).Close()
 
 	for {
 		buffer := make([]byte, 1024)
-		n, err := conn.Read(buffer)
+		n, err := (*b.conn).Read(buffer)
 		if err != nil {
 			if err != io.EOF {
 				log.Printf("Error reading from TCP connection: %v", err)
@@ -177,7 +177,7 @@ func (b *TCP2HTTPBridgeListener) handleTCPConnection(conn net.Conn) {
 			b.sendHTTPData(data)
 		}
 	}
-	log.Printf("Connection from %s closed", conn.RemoteAddr())
+	log.Printf("Connection from %s closed", (*b.conn).RemoteAddr())
 }
 
 func (b *TCP2HTTPBridgeListener) sendHTTPData(data []byte) {

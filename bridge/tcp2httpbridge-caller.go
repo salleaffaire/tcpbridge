@@ -2,12 +2,17 @@ package bridge
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
+	"time"
 )
 
 type TCP2HTTPBridgeCaller struct {
@@ -37,6 +42,26 @@ func NewTCP2HTTPBridgeCaller(tcpPort, httpPortIn, httpPortOut int) *TCP2HTTPBrid
 	// Start the HTTP server on port httpPortIn
 	bridge.wg.Add(1)
 	go bridge.startHTTPServer(&bridge.wg)
+
+	// Wait for interrupt signal to gracefully shut down
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	<-sigChan // Block until a signal is received
+
+	log.Println("Shutdown signal received. Initiating graceful shutdown...")
+
+	// Signal shutdown to TCP listener
+	// Channel to signal shutdown
+	shutdown := make(chan struct{})
+	var shutdownOnce sync.Once
+	shutdownOnce.Do(func() { close(shutdown) })
+
+	// Shutdown the HTTP server
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := bridge.httpServer.Shutdown(ctx); err != nil {
+		log.Printf("Error shutting down HTTP server: %v", err)
+	}
 
 	return bridge
 }
@@ -73,7 +98,7 @@ func (b *TCP2HTTPBridgeCaller) startHTTPServer(wg *sync.WaitGroup) {
 			}
 			b.conn = &conn
 
-			go b.handleTCPConnection(conn)
+			go b.handleTCPConnection()
 		}
 
 		// Send the data to the TCP server
@@ -98,12 +123,12 @@ func (bridge *TCP2HTTPBridgeCaller) sendTCPData(data []byte) {
 	}
 }
 
-func (b *TCP2HTTPBridgeCaller) handleTCPConnection(conn net.Conn) {
-	defer conn.Close()
+func (b *TCP2HTTPBridgeCaller) handleTCPConnection() {
+	defer (*b.conn).Close()
 
 	for {
 		buffer := make([]byte, 1024)
-		n, err := conn.Read(buffer)
+		n, err := (*b.conn).Read(buffer)
 		if err != nil {
 			if err != io.EOF {
 				log.Printf("Error reading from TCP connection: %v", err)
@@ -120,7 +145,8 @@ func (b *TCP2HTTPBridgeCaller) handleTCPConnection(conn net.Conn) {
 			b.sendHTTPData(data)
 		}
 	}
-	log.Printf("Connection from %s closed", conn.RemoteAddr())
+	log.Printf("Connection from %s closed", (*b.conn).RemoteAddr())
+	b.conn = nil
 }
 
 func (b *TCP2HTTPBridgeCaller) sendHTTPData(data []byte) {
