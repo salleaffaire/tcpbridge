@@ -12,31 +12,24 @@ Let's suppose that we have the following use case
 
 ![alt text](TCPB.png)
 
-A panel wants to connect to a switcher. The connection is over TCP and is initiated by the panel.
+A calling nc (netcat) client wants to connect to a listening nc client. The connection is over TCP and is initiated by the left side= of the diagram.
 
-Listener is running on the switcher.
-
-Caller is the panel.
-
-Start a Listener bridge on the panel side.
+Start a Listener bridge on the right side.
 
 ```bash
 ./tcp-bridge --tcpp=8080 --httppout=9090 --httppin=9091 --mode=listener
 ```
 
-Start a Caller bridge on the switcher side.
+Start a Caller bridge on the lefts side.
 
 ```bash
 ./tcp-bridge --tcpp=8081 --httppout=9091 --httppin=9090 --mode=caller
 ```
 
-When the Panel initiates a connection, it will open it with the listener bridge.
+When the calling nc client initiates a connection, it will open it with the listener bridge.
 
-On the first message sent, from the panel to the switcher, the listener bridge will send a POST to the caller bridge HTTP server.
+On the first message sent, from the left to right, the listener bridge will send a POST to the caller bridge HTTP server.
 
-The caller bridge will initiate a connection with the switcher and send the message.
+The caller bridge will initiate a connection with the listening nc client and send the message.
 
 Beyond that point, bidirectional traffic should flow from,
-
-Switcher to Panel
-Panel to Switcher.
