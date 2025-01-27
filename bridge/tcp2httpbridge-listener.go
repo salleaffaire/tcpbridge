@@ -24,6 +24,8 @@ type TCP2HTTPBridgeListener struct {
 	conn       *net.Conn
 
 	wg sync.WaitGroup
+
+	shutdown chan struct{}
 }
 
 func NewTCP2HTTPBridgeListener(tcpPort, httpPortIn, httpPortOut int) *TCP2HTTPBridgeListener {
@@ -41,13 +43,16 @@ func NewTCP2HTTPBridgeListener(tcpPort, httpPortIn, httpPortOut int) *TCP2HTTPBr
 	go bridge.startHTTPServer(&bridge.wg)
 
 	// Channel to signal shutdown
-	shutdown := make(chan struct{})
-	var shutdownOnce sync.Once
+	bridge.shutdown = make(chan struct{})
 
 	// Start the TCP listener on portX
 	bridge.wg.Add(1)
-	go bridge.startTCPListener(shutdown, &bridge.wg)
+	go bridge.startTCPListener(bridge.shutdown, &bridge.wg)
 
+	return bridge
+}
+
+func (b *TCP2HTTPBridgeListener) Wait() {
 	// Wait for interrupt signal to gracefully shut down
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -56,19 +61,16 @@ func NewTCP2HTTPBridgeListener(tcpPort, httpPortIn, httpPortOut int) *TCP2HTTPBr
 	log.Println("Shutdown signal received. Initiating graceful shutdown...")
 
 	// Signal shutdown to TCP listener
-	shutdownOnce.Do(func() { close(shutdown) })
+	var shutdownOnce sync.Once
+	shutdownOnce.Do(func() { close(b.shutdown) })
 
 	// Shutdown the HTTP server
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := bridge.httpServer.Shutdown(ctx); err != nil {
+	if err := b.httpServer.Shutdown(ctx); err != nil {
 		log.Printf("Error shutting down HTTP server: %v", err)
 	}
 
-	return bridge
-}
-
-func (b *TCP2HTTPBridgeListener) Wait() {
 	b.wg.Wait()
 	fmt.Println("All goroutines finished. Exiting.")
 	b.httpServer.Close()

@@ -43,6 +43,11 @@ func NewTCP2HTTPBridgeCaller(tcpPort, httpPortIn, httpPortOut int) *TCP2HTTPBrid
 	bridge.wg.Add(1)
 	go bridge.startHTTPServer(&bridge.wg)
 
+	return bridge
+}
+
+func (b *TCP2HTTPBridgeCaller) Wait() {
+
 	// Wait for interrupt signal to gracefully shut down
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -59,14 +64,10 @@ func NewTCP2HTTPBridgeCaller(tcpPort, httpPortIn, httpPortOut int) *TCP2HTTPBrid
 	// Shutdown the HTTP server
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := bridge.httpServer.Shutdown(ctx); err != nil {
+	if err := b.httpServer.Shutdown(ctx); err != nil {
 		log.Printf("Error shutting down HTTP server: %v", err)
 	}
 
-	return bridge
-}
-
-func (b *TCP2HTTPBridgeCaller) Wait() {
 	b.wg.Wait()
 	fmt.Println("All goroutines finished. Exiting.")
 	b.httpServer.Close()
