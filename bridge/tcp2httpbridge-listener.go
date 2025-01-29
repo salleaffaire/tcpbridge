@@ -20,6 +20,9 @@ type TCP2HTTPBridgeListener struct {
 	HTTPPortIn  int
 	HTTPPortOut int
 
+	HTTPDomain string
+	HTTPPath   string
+
 	httpServer *http.Server
 	conn       *net.Conn
 
@@ -28,11 +31,13 @@ type TCP2HTTPBridgeListener struct {
 	shutdown chan struct{}
 }
 
-func NewTCP2HTTPBridgeListener(tcpPort, httpPortIn, httpPortOut int) *TCP2HTTPBridgeListener {
+func NewTCP2HTTPBridgeListener(tcpPort, httpPortIn, httpPortOut int, httpdomain, httppath string) *TCP2HTTPBridgeListener {
 	bridge := &TCP2HTTPBridgeListener{
 		TCPPort:     tcpPort,
 		HTTPPortIn:  httpPortIn,
 		HTTPPortOut: httpPortOut,
+		HTTPDomain:  httpdomain,
+		HTTPPath:    httppath,
 	}
 
 	// HTTP Server for incoming data
@@ -79,7 +84,9 @@ func (b *TCP2HTTPBridgeListener) Wait() {
 func (b *TCP2HTTPBridgeListener) startHTTPServer(wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	http.HandleFunc("/data", func(w http.ResponseWriter, r *http.Request) {
+	path := fmt.Sprintf("%s", b.HTTPPath)
+
+	http.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 			return
@@ -183,7 +190,7 @@ func (b *TCP2HTTPBridgeListener) handleTCPConnection() {
 }
 
 func (b *TCP2HTTPBridgeListener) sendHTTPData(data []byte) {
-	resp, err := http.Post(fmt.Sprintf("http://localhost:%d/data", b.HTTPPortOut), "application/octet-stream",
+	resp, err := http.Post(fmt.Sprintf("http://localhost:%d%s", b.HTTPPortOut, b.HTTPPath), "application/octet-stream",
 		bytes.NewReader(data))
 	if err != nil {
 		log.Printf("Failed to send HTTP request: %v", err)

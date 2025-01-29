@@ -18,19 +18,21 @@ func main() {
 	httpPortIn := flag.Int("httppin", 9090, "Port to receive HTTP traffic")
 	httpPortOut := flag.Int("httppout", 9091, "Port to send HTTP traffic")
 	mode := flag.String("mode", Listener, "Mode to run the bridge in: listener or caller")
+	httpDomain := flag.String("httpdomain", "localhost", "Domain to use for HTTP requests")
+	httpPath := flag.String("httppath", "/data", "Path to use for HTTP requests")
 
 	// Parse CLI flags
 	flag.Parse()
 
 	if *mode == Listener {
 		// Create a new bridge instance
-		TCP2HTTPBridgeListener := bridge.NewTCP2HTTPBridgeListener(*tcpPort, *httpPortIn, *httpPortOut)
+		TCP2HTTPBridgeListener := bridge.NewTCP2HTTPBridgeListener(*tcpPort, *httpPortIn, *httpPortOut, *httpDomain, *httpPath)
 		// Wait on bridge
 		TCP2HTTPBridgeListener.Wait()
 		return
 	} else if *mode == Caller {
 		// Create a new bridge instance
-		TCP2HTTPBridgeCaller := bridge.NewTCP2HTTPBridgeCaller(*tcpPort, *httpPortIn, *httpPortOut)
+		TCP2HTTPBridgeCaller := bridge.NewTCP2HTTPBridgeCaller(*tcpPort, *httpPortIn, *httpPortOut, *httpDomain, *httpPath)
 		// Wait on bridge
 		TCP2HTTPBridgeCaller.Wait()
 		return
